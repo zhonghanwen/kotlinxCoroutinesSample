@@ -1,5 +1,6 @@
 import kotlinx.coroutines.*
 import kotlin.concurrent.thread
+import kotlin.system.measureTimeMillis
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
@@ -196,24 +197,97 @@ class Resource {
 //}
 //result: 如果你运行上面的代码，你会看到它并不总是打印零，尽管它可能取决于你机器的时间，你可能需要在这个例子中调整超时以实际看到非零值。
 
+//fun main() {
+//    runBlocking {
+//        repeat(100_000){
+//            launch {
+//                var resource : Resource? = null
+//                try {
+//                    withTimeout(64){
+//                        val duration = 50.milliseconds
+//                        delay(duration)
+//                        resource = Resource()
+//                    }
+//                } finally {
+//                    resource?.close()
+//                }
+//            }
+//        }
+//    }
+//
+//    println(acquired)
+//}
+//result: 此示例始终打印零,资源不泄露。
+
+
+//组合函数
+suspend fun doSomethingUsefulOne(): Int {
+    delay(1000L)
+    return 13
+}
+
+
+suspend fun doSomethingUsefulTwo(): Int {
+    delay(1000L)
+    return 29
+}
+
+//fun main() = runBlocking {
+//    //顺序执行
+//    val time = measureTimeMillis {
+//        val one = doSomethingUsefulOne()
+//        val two = doSomethingUsefulTwo()
+//        println("The answer is ${one + two}")
+//    }
+//    println("Completed in $time ms")
+//
+//    //异步并发
+//    val time1 = measureTimeMillis {
+//        val one = async { doSomethingUsefulOne() }
+//        val two = async { doSomethingUsefulTwo() }
+//        println("The answer is ${one.await() + two.await()}")
+//    }
+//    println("Completed in $time1 ms")
+//
+//    //惰性的
+//    val time2 = measureTimeMillis {
+//        val one = async(start = CoroutineStart.LAZY) { doSomethingUsefulOne() }
+//        val two = async(start = CoroutineStart.LAZY) { doSomethingUsefulTwo() }
+//        //执行一些计算
+//        one.start()
+//        two.start()
+//        println("The answer is ${one.await() + two.await()}")
+//
+//    }
+//    println("Completed in $time2")
+//
+//
+//
+//}
+//
+
+
 fun main() {
-    runBlocking {
-        repeat(100_000){
-            launch {
-                var resource : Resource? = null
-                try {
-                    withTimeout(64){
-                        val duration = 50.milliseconds
-                        delay(duration)
-                        resource = Resource()
-                    }
-                } finally {
-                    resource?.close()
-                }
-            }
+    val time = measureTimeMillis {
+        //我们可以在协程外启动异步执行
+        val one = somethingUsefulOneAsync()
+        val two = somethingUsefulTwoAsync()
+        //但是结果必须调用其他的挂起或者阻塞
+
+        runBlocking {
+            println("The answer is ${one.await() + two.await()}")
         }
     }
 
-    println(acquired)
+    println("Completed in $time ms")
 }
-//result: 此示例始终打印零,资源不泄露。
+
+//async 风格的函数
+fun somethingUsefulOneAsync() = GlobalScope.async {
+    doSomethingUsefulOne()
+}
+
+fun somethingUsefulTwoAsync() = GlobalScope.async {
+    doSomethingUsefulTwo()
+}
+
