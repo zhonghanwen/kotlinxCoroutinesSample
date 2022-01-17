@@ -267,27 +267,68 @@ suspend fun doSomethingUsefulTwo(): Int {
 //
 
 
-fun main() {
-    val time = measureTimeMillis {
-        //我们可以在协程外启动异步执行
-        val one = somethingUsefulOneAsync()
-        val two = somethingUsefulTwoAsync()
-        //但是结果必须调用其他的挂起或者阻塞
+//fun main() {
+//    val time = measureTimeMillis {
+//        //我们可以在协程外启动异步执行
+//        val one = somethingUsefulOneAsync()
+//        val two = somethingUsefulTwoAsync()
+//        //但是结果必须调用其他的挂起或者阻塞
+//
+//        runBlocking {
+//            println("The answer is ${one.await() + two.await()}")
+//        }
+//    }
+//
+//    println("Completed in $time ms")
+//}
+//
+////async 风格的函数
+//fun somethingUsefulOneAsync() = GlobalScope.async {
+//    doSomethingUsefulOne()
+//}
+//
+//fun somethingUsefulTwoAsync() = GlobalScope.async {
+//    doSomethingUsefulTwo()
+//}
 
-        runBlocking {
-            println("The answer is ${one.await() + two.await()}")
+
+
+//使用 async 的结构化并发
+fun main(): Unit = runBlocking {
+//    val time = measureTimeMillis {
+//        println("The answer is ${concurrentSum()}")
+//    }
+//    println("completed in $time ms")
+    try {
+        failedConcurrentSum()
+    } catch (e: ArithmeticException){
+        println("Computation failed with ArithmeticException")
+    }
+
+}
+
+
+suspend fun concurrentSum(): Int = coroutineScope {
+    val one = async { doSomethingUsefulOne() }
+    val two = async { doSomethingUsefulTwo() }
+    one.await() + two.await()
+}
+
+
+suspend fun failedConcurrentSum(): Int = coroutineScope {
+    val one = async<Int> {
+        try {
+            delay(Long.MAX_VALUE) // 模拟一个长时间的运算
+            42
+        } finally {
+            println("First child was cancelled")
         }
     }
 
-    println("Completed in $time ms")
-}
+    val two = async<Int> {
+        println("Second child throws an exception")
+        throw  ArithmeticException()
+    }
 
-//async 风格的函数
-fun somethingUsefulOneAsync() = GlobalScope.async {
-    doSomethingUsefulOne()
+    one.await() + two.await()
 }
-
-fun somethingUsefulTwoAsync() = GlobalScope.async {
-    doSomethingUsefulTwo()
-}
-
