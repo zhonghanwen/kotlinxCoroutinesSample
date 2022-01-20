@@ -294,18 +294,18 @@ suspend fun doSomethingUsefulTwo(): Int {
 
 
 //使用 async 的结构化并发
-fun main(): Unit = runBlocking {
-//    val time = measureTimeMillis {
-//        println("The answer is ${concurrentSum()}")
+//fun main(): Unit = runBlocking {
+////    val time = measureTimeMillis {
+////        println("The answer is ${concurrentSum()}")
+////    }
+////    println("completed in $time ms")
+//    try {
+//        failedConcurrentSum()
+//    } catch (e: ArithmeticException){
+//        println("Computation failed with ArithmeticException")
 //    }
-//    println("completed in $time ms")
-    try {
-        failedConcurrentSum()
-    } catch (e: ArithmeticException){
-        println("Computation failed with ArithmeticException")
-    }
-
-}
+//
+//}
 
 
 suspend fun concurrentSum(): Int = coroutineScope {
@@ -332,3 +332,112 @@ suspend fun failedConcurrentSum(): Int = coroutineScope {
 
     one.await() + two.await()
 }
+
+
+//协程上下文与调度器
+//fun main(): Unit = runBlocking {
+//    launch { //运行在父协程的上下中，即 runBlocking 主协程
+//        println("main runBlocking  : I'm working in thread  ${Thread.currentThread().name}")
+//    }
+//    launch(Dispatchers.Unconfined) { //不受限的--将工作在主线程中
+//        println("Unconfined     : I'm working in thread ${Thread.currentThread().name}")
+//    }
+//
+//    //当协程在 GlobalScope 中启动时，使用的是由 Dispatchers.Default 代表的默认调度器。
+//    // 默认调度器使用共享的后台线程池。
+//    // 所以 launch(Dispatchers.Default) { …… } 与 GlobalScope.launch { …… } 使用相同的调度器。
+//    launch(Dispatchers.Default) { //将会获取默认调度器
+//        println("Default    : I'm working in thread ${Thread.currentThread().name}")
+//    }
+//
+//    //newSingleThreadContext 为协程的运行启动了一个线程。
+//    // 一个专用的线程是一种非常昂贵的资源。
+//    // 在真实的应用程序中两者都必须被释放，当不再需要的时候，使用 close 函数，或存储在一个顶层变量中使它在整个应用程序中被重用。
+//    launch(newSingleThreadContext("MyOwnThread")) {
+//        println("newSingleThreadContext: I'm working in thread ${Thread.currentThread().name}")
+//    }
+//
+//
+//}
+
+
+//非受限调度器 VS 受限调度器
+//fun main() = runBlocking<Unit> {
+//    launch(Dispatchers.Unconfined) {
+//        println("Unconfined     : I'm working in thread ${Thread.currentThread().name}")
+//        delay(500)
+//        println("Unconfined     : I'm working in thread ${Thread.currentThread().name}")
+//    }
+//
+//    launch {
+//        println("main   : I'm working in thread ${Thread.currentThread().name}")
+//        delay(1000)
+//        println("main   : I'm working in thread ${Thread.currentThread().name}")
+//    }
+//
+//
+//}
+
+
+//用日志调试
+fun log(msg: String) = println("[${Thread.currentThread().name}] $msg")
+//
+//fun main() = runBlocking<Unit> {
+//    val a = async {
+//        log("I'm computing a piece of the answer")
+//        6
+//    }
+//    val b = async {
+//        log("I'm computing another piece of the answer")
+//        7
+//    }
+//    log("The answer is ${a.await() * b.await()}")
+//}
+
+//线程切换
+//fun main() {
+//    newSingleThreadContext("Ctx1").use { ctx1 ->
+//        newSingleThreadContext("Ctx2").use { ctx2 ->
+//            runBlocking(ctx1) {
+//                log("Started in ctx1")
+//                withContext(ctx2) {
+//                    log("Working in ctx2")
+//                }
+//                log("Back to ctx1")
+//            }
+//        }
+//    }
+//}
+
+//上下文中的作业
+//fun main() = runBlocking {
+//    println("My job is ${coroutineContext[Job]}")
+//}
+//CoroutineScope 中的 isActive 只是 coroutineContext[Job]?.isActive == true 的一种方便的快捷方式。
+
+//子协程
+fun main() = runBlocking {
+    //启动一个协程来处理某种传入请求（request)
+    val request = launch {
+        //孵化了两个子作业，其中一个通过 GlobalScope 启动
+        GlobalScope.launch {
+            println("job1 : I run in GlobalScope and execute independently!")
+            delay(1000)
+            println("job1 : I am not affected by cancellation of the request")
+        }
+
+        //另一个则承袭了父协程的上下文
+        launch {
+            delay(100)
+            println("job2: I am a child of the request coroutine")
+            delay(1000)
+            println("job2: I will not execute this line if my parent request is cancelled!")
+        }
+    }
+
+    delay(500)
+    request.cancel()    //取消请求（request) 的执行
+    delay(1000) //延迟一秒钟来看看发生了什么
+    println("main: who has survived request cancellation?")
+}
+
