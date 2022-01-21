@@ -416,28 +416,110 @@ fun log(msg: String) = println("[${Thread.currentThread().name}] $msg")
 //CoroutineScope 中的 isActive 只是 coroutineContext[Job]?.isActive == true 的一种方便的快捷方式。
 
 //子协程
-fun main() = runBlocking {
-    //启动一个协程来处理某种传入请求（request)
-    val request = launch {
-        //孵化了两个子作业，其中一个通过 GlobalScope 启动
-        GlobalScope.launch {
-            println("job1 : I run in GlobalScope and execute independently!")
-            delay(1000)
-            println("job1 : I am not affected by cancellation of the request")
-        }
+//fun main() = runBlocking {
+//    //启动一个协程来处理某种传入请求（request)
+//    val request = launch {
+//        //孵化了两个子作业，其中一个通过 GlobalScope 启动
+//        GlobalScope.launch {
+//            println("job1 : I run in GlobalScope and execute independently!")
+//            delay(1000)
+//            println("job1 : I am not affected by cancellation of the request")
+//        }
+//
+//        //另一个则承袭了父协程的上下文
+//        launch {
+//            delay(100)
+//            println("job2: I am a child of the request coroutine")
+//            delay(1000)
+//            println("job2: I will not execute this line if my parent request is cancelled!")
+//        }
+//    }
+//
+//    delay(500)
+//    request.cancel()    //取消请求（request) 的执行
+//    delay(1000) //延迟一秒钟来看看发生了什么
+//    println("main: who has survived request cancellation?")
+//}
 
-        //另一个则承袭了父协程的上下文
-        launch {
-            delay(100)
-            println("job2: I am a child of the request coroutine")
-            delay(1000)
-            println("job2: I will not execute this line if my parent request is cancelled!")
-        }
+//一个父协程总是等待所有的子协程执行结束。父协程并不显式的跟踪所有子协程的启动，并且不必使用 Job.join 在最后的时候等待它们.
+//fun main() = runBlocking {
+//    //启动一个协程来处理某种传入请求(request)
+//    val request = launch {
+//        repeat(3) { i ->
+//            launch {
+//                delay(( i + 1) * 200L)
+//                println("Coroutine $i is done")
+//
+//            }
+//        }
+//        println("request: I'm done and I don't explicitly join my children that are still active")
+//    }
+//    request.join() //等待请求的完成，包括其所有子协程
+//    println("Now processing of the request is complete")
+//}
+
+//命名协程
+//fun main() = runBlocking(CoroutineName("main")){
+//    log("Started main coroutine")
+//    val v1 = async(CoroutineName("v1Coroutine")) {
+//        delay(1500)
+//        log("Computing v1")
+//        252
+//    }
+//
+//    val v2 = async(CoroutineName("v2Coroutine")) {
+//        delay(1000)
+//        log("Computing v2")
+//        6
+//    }
+//    log("The answer for v1 / v2 = ${v1.await() / v2.await()}")
+//}
+
+
+//组合上下文中的元素
+//fun main(): Unit = runBlocking {
+//    launch(Dispatchers.Default + CoroutineName("test")) {
+//        log("I'm working in thread!")
+//    }
+//}
+
+//协程作用域
+class Activity {
+    private val mainScope = CoroutineScope(Dispatchers.Default)
+
+    fun destory() {
+        mainScope.cancel()
     }
 
-    delay(500)
-    request.cancel()    //取消请求（request) 的执行
-    delay(1000) //延迟一秒钟来看看发生了什么
-    println("main: who has survived request cancellation?")
+    fun doSomething(){
+        repeat(10){ i ->
+            mainScope.launch {
+                delay((i + 1) * 200L)
+                println("Coroutine $i is done")
+            }
+        }
+    }
 }
 
+//fun main() = runBlocking {
+//    val activity = Activity()
+//    activity.doSomething()
+//    println(500L)
+//    println("Destroying activity!")
+//    activity.destory()
+//    delay(1000)
+//}
+
+val threadLocal = ThreadLocal<String ?>()
+
+fun main() = runBlocking {
+    threadLocal.set("main")
+    println("pre-main, current thread: ${Thread.currentThread().name}, thread local value: '${threadLocal.get()}'")
+    val job = launch(Dispatchers.Default + threadLocal.asContextElement(value = "launch")) {
+        println("Launch start, current thread ${Thread.currentThread()}, thread local value: '${threadLocal.get()}'")
+        yield()
+        println("After yield, current thread: ${Thread.currentThread()}, thread local value: '${threadLocal.get()}'")
+    }
+    job.join()
+    println("Post-main, current thread: ${Thread.currentThread()}, thread local value: '${threadLocal.get()}'")
+}
